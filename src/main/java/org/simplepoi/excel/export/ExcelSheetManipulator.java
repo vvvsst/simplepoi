@@ -10,10 +10,7 @@ import org.simplepoi.excel.constant.PoiBaseConstants;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Properties;
+import java.util.*;
 
 import static org.simplepoi.excel.constant.PoiBaseConstants.*;
 import static org.simplepoi.excel.export.ImageCellCreateSupport.createImageCell;
@@ -21,18 +18,20 @@ import static org.simplepoi.excel.export.ImageCellCreateSupport.setImageCellType
 
 public class ExcelSheetManipulator {
     private int finishedLine = 0;
-    private Sheet sheet;
+    private final Sheet sheet;
     private ExcelType type = ExcelType.HSSF;
-    private List<Row> rows = new ArrayList<>();
-    private List<List<ObjElement>> rowDatas = new ArrayList<>();
+    private final List<Row> rows = new ArrayList<>();
+    private final List<List<ObjElement>> rowData = new ArrayList<>();
     private static final Logger LOGGER = LoggerFactory.getLogger(ExcelSheetManipulator.class);
     private CellStyle cellStyle;
     private Drawing drawing;
     private Properties properties = new Properties();
+    private Map<Integer,Properties> propertiesColumnMap = new HashMap<>();
 
     private GenericTokenParser tokenParser = new GenericTokenParser("${", "}", properties);
 
-    public Drawing getDrawaing() {
+    public Drawing getDrawing() {
+
         if (drawing == null)
             return sheet.createDrawingPatriarch();
         else return drawing;
@@ -79,12 +78,13 @@ public class ExcelSheetManipulator {
         List<Row> rows = new ArrayList<>();
         rows.add(sheet.createRow(finishedLine));
 
-        int[] headerRow = createHeaderRow(rowData, new int[]{finishedLine, 0});
+        int[] headerRow = createHeaderRow(rowData, new int[]{finishedLine, 0},null);
         finishedLine += headerRow[0];
         return this;
     }
 
-    private int[] createHeaderRow(List<HeaderElement> rowData, int[] rowAndColumn) {
+    Map<String,Integer> keysOccupied = new HashMap<>();
+    private int[] createHeaderRow(List<HeaderElement> rowData, int[] rowAndColumn,Properties propertiesColumn) {
 
         // re-order before create sheet rows
         for (HeaderElement headerElement : rowData) {
@@ -94,49 +94,64 @@ public class ExcelSheetManipulator {
             headerElement.order = headerElement.subElements.get(0).order;
         }
         Collections.sort(rowData);
-
-        int maxHtight = rowAndColumn[0];
+        if (propertiesColumn==null){
+            propertiesColumnMap.putIfAbsent(rowAndColumn[1],new Properties());
+            propertiesColumn = propertiesColumnMap.get(rowAndColumn[1]);
+        }
+        int maxHeight = rowAndColumn[0];
         for (HeaderElement headerElement : rowData) {
             // create cells
             headerElement.recordRow = rowAndColumn[0];
             headerElement.recordColumn = rowAndColumn[1];
             if (headerElement.width != 0)
                 sheet.setColumnWidth(rowAndColumn[1], headerElement.width * 256); // also set column width
-            String fieldName = headerElement.generateCahinFieldName();
-            if (StringUtils.isNotEmpty(fieldName))
-                properties.put(PoiBaseConstants.VAR_COL + fieldName, Character.toString(((char) ('A' + rowAndColumn[1])))); // column variable todo
+            //String fieldName = headerElement.generateChainFieldName();
+            String fieldName = headerElement.fieldName;
+            if (StringUtils.isNotEmpty(fieldName)) {
+                String value = Character.toString(((char) ('A' + rowAndColumn[1])));
+                Integer num = keysOccupied.getOrDefault(fieldName, 0);
+                if (num == 0) {
+                    properties.put(PoiBaseConstants.VAR_COL + fieldName, value);
+                } else {
+                    properties.put(PoiBaseConstants.VAR_COL + num + fieldName, value); // column variable todo
+                }
+                keysOccupied.put(fieldName, num + 1);
+                propertiesColumn.put(PoiBaseConstants.VAR_COL + fieldName, value);
+            }
             createStringCell(getOrCreateRow(rowAndColumn[0]), rowAndColumn[1], headerElement.value);
-            maxHtight = rowAndColumn[0] + 1;
+            maxHeight = rowAndColumn[0] + 1;
             int[] rowAndColumn2 = new int[]{rowAndColumn[0], rowAndColumn[1] + 1}; // column add 1
             if (headerElement.subElements != null) {
                 headerElement.setParentElementForChild();
-                rowAndColumn2 = createHeaderRow(headerElement.subElements, new int[]{rowAndColumn[0] + 1, rowAndColumn[1]});
+                if (headerElement.fieldName == null){ // this is a group
+                    rowAndColumn2 = createHeaderRow(headerElement.subElements, new int[]{rowAndColumn[0] + 1, rowAndColumn[1]},propertiesColumn);
+                } else rowAndColumn2 = createHeaderRow(headerElement.subElements, new int[]{rowAndColumn[0] + 1, rowAndColumn[1]},null);
             }
             rowAndColumn[1] = rowAndColumn2[1];
-            // horizonal merge
-            try { // vertical merge
-                sheet.addMergedRegion(new CellRangeAddress(headerElement.recordRow, headerElement.recordRow,
+            // horizontal merge
+            try {
+              if(rowAndColumn[1] - 1 != headerElement.recordColumn)  sheet.addMergedRegion(new CellRangeAddress(headerElement.recordRow, headerElement.recordRow,
                         headerElement.recordColumn, rowAndColumn[1] - 1));
             } catch (IllegalArgumentException e) {
                 LOGGER.error("合并单元格错误日志：" + e.getMessage());
                 e.fillInStackTrace();
             }
 
-            maxHtight = rowAndColumn2[0] > maxHtight ? rowAndColumn2[0] : maxHtight;
+            maxHeight = Math.max(rowAndColumn2[0], maxHeight);
         }
 
         //vertical merge
         for (HeaderElement headerElement : rowData) {
             if (headerElement.subElements != null && headerElement.subElements.size() != 0) continue;
             try { // vertical merge
-                sheet.addMergedRegion(new CellRangeAddress(headerElement.recordRow, maxHtight - 1,
+             if(headerElement.recordRow!=maxHeight - 1)   sheet.addMergedRegion(new CellRangeAddress(headerElement.recordRow, maxHeight - 1,
                         headerElement.recordColumn, headerElement.recordColumn));
             } catch (IllegalArgumentException e) {
                 LOGGER.error("合并单元格错误日志：" + e.getMessage());
                 e.fillInStackTrace();
             }
         }
-        return new int[]{maxHtight, rowAndColumn[1]};
+        return new int[]{maxHeight, rowAndColumn[1]};
     }
 
     private Row getOrCreateRow(int n) {
@@ -153,7 +168,7 @@ public class ExcelSheetManipulator {
         properties.put(VAR_PARENT_ROW_LIST, String.valueOf(finishedLine+1));
         properties.put(VAR_ROW_SUBLIST, String.valueOf(finishedLine+1));
 //        VAR_ROW_SUBLIST
-        rowDatas.add(rowData);
+        this.rowData.add(rowData);
         // read one row or multiple rows
         int startColumn = 0;
 //        finishedLine++;
@@ -168,7 +183,7 @@ public class ExcelSheetManipulator {
                 }
                 startColumn = rowAndColumn2[1];
                 valueElement.mergedRows = rowAndColumn2[0] - 1;
-                maxRow = maxRow > rowAndColumn2[0] ? maxRow : rowAndColumn2[0];
+                maxRow = Math.max(maxRow, rowAndColumn2[0]);
                 continue;
             }
 
@@ -181,8 +196,7 @@ public class ExcelSheetManipulator {
                 createFormulaCell(getOrCreateRow(finishedLine), startColumn, tokenParser.parse(valueElement.value));
             } else { // create picture case
                 try {
-
-                    createImageCell(getDrawaing(), getOrCreateRow(finishedLine), startColumn, valueElement.value);
+                    createImageCell(getDrawing(), getOrCreateRow(finishedLine), startColumn, valueElement.value);
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
@@ -200,7 +214,7 @@ public class ExcelSheetManipulator {
                 continue;
             }
             try { // vertical merge
-                sheet.addMergedRegion(new CellRangeAddress(valueElement.recordRow, finishedLine - 1,
+               sheet.addMergedRegion(new CellRangeAddress(valueElement.recordRow, finishedLine - 1,
                         valueElement.recordColumn, valueElement.recordColumn));
             } catch (IllegalArgumentException e) {
                 LOGGER.error("合并单元格错误日志：" + e.getMessage());
@@ -213,6 +227,8 @@ public class ExcelSheetManipulator {
 
     private int[] insertSubObjList(List<Row> rows, int[] rowAndColumn, List<ObjElement> valueElement) { // int startRow, int startColumn int[2]{,}
         int[] rowAndColumn1 = new int[]{rowAndColumn[0], rowAndColumn[1]};  // or create a new one
+        Properties propertiesColumn = propertiesColumnMap.get(rowAndColumn[1]);
+        if (propertiesColumn != null) tokenParser.setSecondProp(propertiesColumn);
         int maxRow = rowAndColumn[0];
         for (ObjElement objElement : valueElement) {
             if (objElement.subObjList != null) {
@@ -223,12 +239,13 @@ public class ExcelSheetManipulator {
                     rowAndColumn2 = insertSubObjList(rows, new int[]{rowAndColumn2[0], rowAndColumn[1]}, objElementList2);
                 }
                 properties.put(VAR_ROW_SUBLIST, backUp);
-                rowAndColumn1[1] = rowAndColumn2[1];
+                rowAndColumn1[1] = rowAndColumn2[1]; // rowAndColumn1 is not returned , but rowAndColumn is
+                rowAndColumn[1]=rowAndColumn2[1];
                 objElement.mergedRows = rowAndColumn2[0] - 1;
-                maxRow = maxRow > rowAndColumn2[0] ? maxRow : rowAndColumn2[0];
+                maxRow = Math.max(maxRow, rowAndColumn2[0]);
                 continue;
             }
-            properties.put(VAR_ROW_LIST, String.valueOf(finishedLine+1));
+            properties.put(VAR_ROW_LIST, String.valueOf(rowAndColumn[0]+1));
             if (objElement.type == 1) {
                 createStringCell(getOrCreateRow(rowAndColumn[0]), rowAndColumn[1], objElement.value);
             } else if (objElement.type == 4) { // numerical
@@ -237,7 +254,7 @@ public class ExcelSheetManipulator {
                 createFormulaCell(getOrCreateRow(rowAndColumn[0]), rowAndColumn[1], tokenParser.parse(objElement.value));
             } else { // create picture case
                 try {
-                    createImageCell(getDrawaing(), getOrCreateRow(rowAndColumn[0]), rowAndColumn[1], objElement.value);
+                    createImageCell(getDrawing(), getOrCreateRow(rowAndColumn[0]), rowAndColumn[1], objElement.value);
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
@@ -246,13 +263,13 @@ public class ExcelSheetManipulator {
             objElement.recordColumn = rowAndColumn[1];
             rowAndColumn[1]++;
         }
-        rowAndColumn[0] = maxRow > rowAndColumn[0] + 1 ? maxRow : rowAndColumn[0] + 1;
+        rowAndColumn[0] = Math.max(maxRow, rowAndColumn[0] + 1);
         for (ObjElement valueElement2 : valueElement) {
             if (valueElement2.subObjList != null) {
                 continue;
             }
             try { // vertical merge
-                sheet.addMergedRegion(new CellRangeAddress(valueElement2.recordRow, rowAndColumn[0] - 1,
+              if(valueElement2.recordRow!=rowAndColumn[0] - 1)  sheet.addMergedRegion(new CellRangeAddress(valueElement2.recordRow, rowAndColumn[0] - 1,
                         valueElement2.recordColumn, valueElement2.recordColumn));
             } catch (IllegalArgumentException e) {
                 LOGGER.error("合并单元格错误日志：" + e.getMessage());
@@ -328,12 +345,19 @@ public class ExcelSheetManipulator {
             }
         }
 
-        public String generateCahinFieldName() {
+        public String generateChainFieldName() {
             if (StringUtils.isEmpty(this.fieldName)) return "";
             StringBuilder stringBuilder = new StringBuilder(this.fieldName);
             HeaderElement parentElement = this.parentElementForField;
-            while (parentElement != null && StringUtils.isEmpty(parentElement.fieldName)) {
+            while (parentElement != null ) {
+                if (StringUtils.isEmpty(parentElement.fieldName)) {
+                    parentElement = parentElement.parentElementForField;
+                    continue;
+                }
                 stringBuilder.insert(0, ".").insert(0, parentElement.fieldName);
+                parentElement = parentElement.parentElementForField;
+                //System.out.println(stringBuilder.toString());
+                //break; // not consider level >2 for present
             }
             return stringBuilder.toString();
         }
@@ -370,36 +394,8 @@ public class ExcelSheetManipulator {
 
     }
 
-    //update-begin--Author:xuelin  Date:20171018 for：TASK #2372 【excel】AutoPoi 导出类型，type增加数字类型--------------------
-    private void createNumericCell(Row row, int index, String text, CellStyle style, ExcelExportServer.ExcelExportEntity entity) {
-        Cell cell = row.createCell(index);
-        if (StringUtils.isEmpty(text)) {
-            cell.setCellValue("");
-            cell.setCellType(CellType.BLANK);
-        } else {
-//			cell.setCellFormula(text);
-            cell.setCellValue(Double.parseDouble(text));
-            cell.setCellType(CellType.NUMERIC);
-        }
-        if (style != null) {
-            cell.setCellStyle(style);
-        }
-    }
 
-    private void createFormulaCell(Row row, int index, String text, CellStyle style, ExcelExportServer.ExcelExportEntity entity) {
-        Cell cell = row.createCell(index);
-        if (StringUtils.isEmpty(text)) {
-            cell.setCellValue("");
-            cell.setCellType(CellType.BLANK);
-        } else {
-            cell.setCellFormula(text);
-//			cell.setCellValue(Double.parseDouble(text));
-//			cell.setCellType(CellType.FORMULA);
-        }
-        if (style != null) {
-            cell.setCellStyle(style);
-        }
-    }
+
 
     private void createFormulaCell(Row row, int index, String text) {
         Cell cell = row.createCell(index);
@@ -415,6 +411,7 @@ public class ExcelSheetManipulator {
     }
 
     private void createStringCell(Row row, int index, String text) {
+        //System.out.println(row.getRowNum() + " " + index + "  :" + text);
         Cell cell = row.createCell(index);
         cell.setCellStyle(cellStyle);
         RichTextString Rtext;
@@ -437,27 +434,6 @@ public class ExcelSheetManipulator {
             cell.setCellValue(Double.parseDouble(text));
             cell.setCellType(CellType.NUMERIC);
         }
-    }
-
-    private void createStringCell(Row row, int index, String text, CellStyle style) {
-        Cell cell = row.createCell(index);
-        cell.setCellStyle(cellStyle);
-        if (style != null && style.getDataFormat() > 0 && style.getDataFormat() < 12) {
-            cell.setCellValue(Double.parseDouble(text));
-            cell.setCellType(CellType.NUMERIC);
-        } else {
-            RichTextString Rtext;
-            if (type.equals(ExcelType.HSSF)) {
-                Rtext = new HSSFRichTextString(text);
-            } else {
-                Rtext = new XSSFRichTextString(text);
-            }
-            cell.setCellValue(Rtext);
-        }
-        if (style != null) {
-            cell.setCellStyle(style);
-        }
-
     }
 
 

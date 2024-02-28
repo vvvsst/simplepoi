@@ -61,7 +61,7 @@ public abstract class ImageCellCreateSupport {
         } else if (imageType == 4 || imagePath.startsWith("http")) {
             //新增逻辑 网络图片4
             try {
-                if (imagePath.indexOf(",") != -1) {
+                if (imagePath.contains(",")) {
                     if (imagePath.startsWith(",")) {
                         imagePath = imagePath.substring(1);
                     }

@@ -43,7 +43,9 @@ public class GenericTokenParser {
 
 //    public void refreshProperties(){
 //    }
-
+    public void setSecondProp(Properties properties){
+        this.handler.setSecondProp(properties);
+    }
     public String parse(String text) {
         if (text == null || text.isEmpty()) {
             return "";

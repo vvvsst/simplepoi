@@ -6,9 +6,11 @@ package org.simplepoi.excel.constant;
  */
 public interface PoiBaseConstants {
     String VAR_COL = "COL_";
-    String VAR_PARENT_ROW_LIST = "ROW_LIST";
+    String VAR_PARENT_ROW_LIST = "PARENT_ROW_LIST";
     String VAR_ROW_LIST = "ROW_LIST";
     String VAR_ROW_SUBLIST = "ROW_SUBLIST";
+
+    // used as a filed name, so it will be set as the line number of Excel being read
     String ROW_FIElD = "row_num";
 
     /**
@@ -32,7 +34,7 @@ public interface PoiBaseConstants {
      */
     String CONVERT = "convert";
 
-    // used as a filed name, so it will be set as the line number of Excel being read
+
 
 
 }

@@ -20,6 +20,7 @@ public class ImportParams  {
 	 * 表头行数,默认1
 	 */
 	private int headRows = 1;
+	private int headColumns = 1;
 
  //update-begin-author:liusq date:20220605 for:https://gitee.com/jeecg/jeecg-boot/issues/I57UPC 导入 ImportParams 中没有startSheetIndex参数
 	/**
@@ -35,7 +36,12 @@ public class ImportParams  {
 	private int sheetNum = 0;
 	//update-end-author:taoyan date:20211210 for:https://gitee.com/jeecg/jeecg-boot/issues/I45C32 导入空白sheet报错
 
-
+	public ImportParams( ) {
+	}
+	public ImportParams(int headRows,int headColumns) {
+		this.headRows = headRows;
+		this.headColumns = headColumns;
+	}
 
 	/**
 	 * 最后的无效行数
@@ -44,8 +50,11 @@ public class ImportParams  {
 
 	public int getHeadRows() {
 		return headRows;
-	}
 
+	}
+	public int getHeadColumns() {
+		return headColumns;
+	}
 
 	public int getSheetNum() {
 		return sheetNum;

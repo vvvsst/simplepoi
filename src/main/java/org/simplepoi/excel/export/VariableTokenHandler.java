@@ -8,6 +8,7 @@ public class VariableTokenHandler implements TokenHandler {
     private final String openToken; // #{  ${
     private final String closeToken; // }
     private final Properties variables;
+    private   Properties variables2;
 
     public VariableTokenHandler(Properties variables, String openToken, String closeToken) {
         this.variables = variables;
@@ -19,8 +20,15 @@ public class VariableTokenHandler implements TokenHandler {
         return (variables == null) ? defaultValue : variables.getProperty(key, defaultValue);
     }
 
+    public void setSecondProp(Properties prop) {
+     this.variables2 = prop;
+    }
+
     @Override
     public String handleToken(String content) {
+        if (variables2 != null && variables2.containsKey(content)) {
+            return variables2.getProperty(content);
+        }
         if (variables != null && variables.containsKey(content)) {
             return variables.getProperty(content);
         }

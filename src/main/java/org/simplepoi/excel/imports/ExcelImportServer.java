@@ -12,11 +12,11 @@ import org.simplepoi.excel.annotation.ExcelCollection;
 import org.simplepoi.excel.annotation.ExcelEntity;
 import org.simplepoi.excel.annotation.ExcelField;
 import org.simplepoi.excel.ReflectionUtil;
+import org.simplepoi.excel.constant.PoiBaseConstants;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import static org.simplepoi.excel.ReflectionUtil.getSetMethod;
-import static org.simplepoi.excel.constant.PoiBaseConstants.ROW_FIELD;
 import static org.simplepoi.excel.ReflectionUtil.createObject;
 import static org.simplepoi.excel.constant.PoiBaseConstants.ROW_FIElD;
 import static org.simplepoi.excel.imports.ImportImageSupport.*;
@@ -126,7 +126,7 @@ public class ExcelImportServer {
         }
         T object;
 
-        while (rows.hasNext() && (row == null || sheet.getLastRowNum() - row.getRowNum() > params.getLastOfInvalidRow())) {
+        while (rows.hasNext() && !(row == null || sheet.getLastRowNum() - row.getRowNum() < params.getLastOfInvalidRow())) {
             row = rows.next();
             object = createObject(pojoClass);
             int finishedNum = importRow(row, object);
@@ -155,7 +155,7 @@ public class ExcelImportServer {
         if (lastCellNum < maxColumnIndex + 1) {
             lastCellNum = maxColumnIndex + 1;
         }
-        ExcelImportEntity rowEntity = excelParams.get(ROW_FIELD);
+        ExcelImportEntity rowEntity = excelParams.get(PoiBaseConstants.ROW_FIElD);
         if (rowEntity != null) {
             int rowNum = row.getRowNum();
             rowEntity.getMethod().invoke(object, rowNum + 1);  // set row number into the created object
@@ -164,6 +164,7 @@ public class ExcelImportServer {
         String picId;
         for (int i = firstCellNum; i < lastCellNum; i++) {
             Cell cell = row.getCell(i);
+            if (cell==null) continue;
             String titleString = titleMap.get(i);
             if (!excelParams.containsKey(titleString)) continue;
             if (excelParams.get(titleString) != null && excelParams.get(titleString).getType() == 2) { // 先处理图片格式的情况
@@ -324,46 +325,53 @@ public class ExcelImportServer {
         }
         StringBuilder debugInfo1 = new StringBuilder();
         HashMap<Integer, Integer> previousMergedRow = null;
-        Map<Integer, String> titlemap = new HashMap<Integer, String>();
-        for (int j = headBegin - 1; ; j++) { // j < headBegin + params.getHeadRows() - 1
+        Map<Integer, String> titleMap = new HashMap<Integer, String>();
+        for (int j = headBegin - 1;j<=params.getHeadRows()-1 ; j++) { // j < headBegin + params.getHeadRows() - 1
             Row currentRow = sheet.getRow(j);
 
             // determine whether the next-row read can be on going , which is whether it has reached data region
-            if (previousMergedRow != null) { // first row shouldn't skipped
-                Iterator<Cell> cellIterator2 = currentRow.cellIterator();
-                boolean shouldJumpOut = false;
-                boolean allOutOfRegion = true;
-                while (cellIterator2.hasNext()) {
-                    Cell cell = cellIterator2.next();
-                    boolean isInPreviousMergeRegion = isInPreviousMergeRegion(cell.getColumnIndex(), previousMergedRow);
-                    if (!isInPreviousMergeRegion) allOutOfRegion = false;
-                    if (!isInPreviousMergeRegion && StringUtils.isNotEmpty(cell.getStringCellValue())) {
-
-                        shouldJumpOut = true;
-                        break;
-                    }
-                }
-                if (shouldJumpOut || allOutOfRegion) break;
-            }
+            // use input parameter params.getHeadRows() for present , todo
+//            if (previousMergedRow != null) { // first row shouldn't be skipped
+//                Iterator<Cell> cellIterator2 = currentRow.cellIterator();
+//                boolean shouldJumpOut = false;
+//                boolean allOutOfRegion = true;
+//                while (cellIterator2.hasNext()) {
+//                    Cell cell = cellIterator2.next();
+//                    boolean isInPreviousMergeRegion = isInPreviousMergeRegion(cell.getColumnIndex(), previousMergedRow);
+//                    if (!isInPreviousMergeRegion) allOutOfRegion = false;
+//                    if (!isInPreviousMergeRegion && StringUtils.isNotEmpty(cell.getStringCellValue())) {
+//
+//                        shouldJumpOut = true;
+//                        break;
+//                    }
+//                }
+//                if (shouldJumpOut || allOutOfRegion) break;
+//            }
 
             HashMap<Integer, Integer> currentMergedRow = new HashMap<>();
             Iterator<Cell> cellIterator1 = currentRow.cellIterator();
             String previousValue = null;
             Integer previousMergeRegionBegin = null;
-            while (cellIterator1.hasNext()) {
-                Cell cell = cellIterator1.next();
-                String value = cell.getStringCellValue();
+
+            for (int i = 0; i < params.getHeadColumns(); i++) {
+                Cell cell = currentRow.getCell(i);
+
+//            }
+//            while (cellIterator1.hasNext()) {
+//                Cell cell = cellIterator1.next(); // null or empty cell will be skipped
+
+                String value = cell!=null?cell.getStringCellValue():null;
                 debugInfo1.append(" ").append(value);
                 boolean isInPreviousMergeRegion = true;
                 if (previousMergedRow != null)// determined by current row and previousMergeRegionBegin
-                    isInPreviousMergeRegion = isInPreviousMergeRegion(cell.getColumnIndex(), previousMergedRow);
+                    isInPreviousMergeRegion = isInPreviousMergeRegion(i, previousMergedRow);
                 if (StringUtils.isNotEmpty(value)) {
-                    String current = titlemap.get(cell.getColumnIndex());
+                    String current = titleMap.get(cell.getColumnIndex());
                     if (StringUtils.isNotEmpty(current)) {
-                        titlemap.put(cell.getColumnIndex(), current + "_" + value);//加入表头列表
+                        titleMap.put(cell.getColumnIndex(), current + "_" + value);//加入表头列表
                         previousValue = current + "_" + value;
                     } else {
-                        titlemap.put(cell.getColumnIndex(), value);//加入表头列表
+                        titleMap.put(cell.getColumnIndex(), value);//加入表头列表
                         previousValue = value;
                     }
                     previousMergeRegionBegin = null;
@@ -377,16 +385,16 @@ public class ExcelImportServer {
 //                    if (!isInPreviousMergeRegion) currentMergedRow.put(cell.getColumnIndex(), cell.getColumnIndex());
 
                 } else if (StringUtils.isNotEmpty(previousValue) && isInPreviousMergeRegion) { // and also should be whithin merge region of previous row todo
-                    if (previousMergeRegionBegin == null) previousMergeRegionBegin = cell.getColumnIndex() - 1;
-                    currentMergedRow.put(previousMergeRegionBegin, cell.getColumnIndex());
-                    titlemap.put(cell.getColumnIndex(), previousValue);//加入表头列表
+                    if (previousMergeRegionBegin == null) previousMergeRegionBegin = i ;
+                    currentMergedRow.put(previousMergeRegionBegin, i);
+                    titleMap.put(i, previousValue);//加入表头列表
                 } else if (!isInPreviousMergeRegion) {
                     // case1, empty value and also out of merge region, previous value should be set empty, then skip
                     previousValue = null;
                 } else if (StringUtils.isEmpty(previousValue)) {
                     // case2, empty value, but whithin merge region, empty previous value, throw runtime error , read head row eception,
                     // the current cell shouldn't be empty
-                    throw new Exception("表头格式错误， " + cell.getRowIndex() + "行 " + cell.getColumnIndex() + "列 " + "不应为空");
+                    throw new Exception("表头格式错误， " + j+1 + "行 " + i+1 + "列 " + "不应为空");
                 }
             }
             previousMergedRow = currentMergedRow;
@@ -394,13 +402,13 @@ public class ExcelImportServer {
 
         debugInfo1.append("\n");
         LOGGER.debug(debugInfo1.toString());
-        return titlemap;
+        return titleMap;
     }
 
-    private static boolean isInPreviousMergeRegion(Integer inputColunm, HashMap<Integer, Integer> mergedRow) {
+    private static boolean isInPreviousMergeRegion(Integer inputColumn, HashMap<Integer, Integer> mergedRow) {
         for (Integer beginColumn : mergedRow.keySet()) {
             Integer endColumn = mergedRow.get(beginColumn);
-            if (inputColunm <= endColumn && inputColunm >= beginColumn)
+            if (inputColumn <= endColumn && inputColumn >= beginColumn)
                 return true;
         }
         return false;

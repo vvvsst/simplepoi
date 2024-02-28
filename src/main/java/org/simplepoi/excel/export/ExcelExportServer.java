@@ -63,30 +63,31 @@ public class ExcelExportServer {
 
         try {
             // 得到所有字段
-            Field fileds[] = ReflectionUtil.getClassFields(pojoClass);
+            Field[] fields = ReflectionUtil.getClassFields(pojoClass);
             //支持自定义导出字段
             if (exportFields != null) {
-                List<Field> list = new ArrayList<Field>(Arrays.asList(fileds));
-                for (int i = 0; i < list.size(); i++) { // one-to-many case @ExcelCollection not considered todo
+                List<Field> list = new ArrayList<Field>(Arrays.asList(fields));
+                for (int i = 0; i < list.size(); i++) { // one-to-many case @ExcelCollection not considered
                     if (!Arrays.asList(exportFields).contains(list.get(i).getName())) {
                         list.remove(i);
                         i--;
                     }
                 }
 
-                if (list != null && list.size() > 0) {
-                    fileds = list.toArray(new Field[0]);
+                if (list.size() > 0) {
+                    fields = list.toArray(new Field[0]);
                 } else {
-                    fileds = null;
+                    fields = null;
                 }
             }
 
-            readAllExcelFields(fileds, excelParams, pojoClass, headerElements); // 获得@Excel注解的值，excelParams,
+            assert fields != null;
+            readAllExcelFields(fields, excelParams, pojoClass, headerElements); // 获得@Excel注解的值，excelParams,
             manipulator.createTitleAndHeaderRow(headerElements, null, null); // null means do not create title row
 
             Iterator<?> its = dataSet.iterator();
             List<Object> tempList = new ArrayList<Object>();
-            while (its.hasNext()) { // create sheet for every row or every element in the list
+            while (its.hasNext()) { // creat sheet for every row or every element in the list
                 Object t = its.next();
                 List<ExcelSheetManipulator.ObjElement> objElements = new ArrayList<>();
                 convertToSheetDataFormat(t, excelParams, objElements);
@@ -119,8 +120,8 @@ public class ExcelExportServer {
     private Properties replenishProperties(int index, List<ExcelExportEntity> excelParams) { // index represents row number
         Properties prop = new Properties();
         char columnLetter = 'A';
-        for (int i = 0; i < excelParams.size(); i++) {
-            if (excelParams.get(i).getList() != null) {
+        for (ExcelExportEntity excelParam : excelParams) {
+            if (excelParam.getList() != null) {
             } else {
                 // to be modified todo
 //                prop.setProperty(excelParams.get(i).getKey().toString(), columnLetter + String.valueOf(index));
@@ -156,8 +157,7 @@ public class ExcelExportServer {
                                    List<ExcelSheetManipulator.HeaderElement> headerElements) throws Exception {
         HashMap<String, List<ExcelSheetManipulator.HeaderElement>> groupHeaderListMap = new HashMap<>();
         HashMap<String, List<ExcelExportEntity>> groupExportListMap = new HashMap<>();
-        for (int i = 0; i < fields.length; i++) {
-            Field field = fields[i];
+        for (Field field : fields) {
             ExcelField excelField1 = field.getAnnotation(ExcelField.class);
             ExcelCollection excelCollection = field.getAnnotation(ExcelCollection.class);
             ExcelEntity excelEntity = field.getAnnotation(ExcelEntity.class);
@@ -169,7 +169,7 @@ public class ExcelExportServer {
                 Class<?> clz = (Class<?>) pt.getActualTypeArguments()[0];
                 // SUB - headerElements should be given here
                 headerElement = new ExcelSheetManipulator.HeaderElement(excelExportEntity.getName(), null,
-                        excelExportEntity.getOrderNum(), excelExportEntity.getWidth(),field.getName());
+                        excelExportEntity.getOrderNum(), excelExportEntity.getWidth(), field.getName());
                 readAllExcelFields(ReflectionUtil.getClassFields(clz),
                         excelExportEntity.getList(), clz, headerElement.getSubElements());
 
@@ -183,18 +183,18 @@ public class ExcelExportServer {
                     List<ExcelSheetManipulator.HeaderElement> headerElements1 = groupHeaderListMap.putIfAbsent(excelExportEntity1.getGroupName(), new ArrayList<>());
                     if (headerElements1 == null) headerElements1 = groupHeaderListMap.get(excelField1.groupName());
                     headerElements1.add(new ExcelSheetManipulator.HeaderElement(excelExportEntity1.getName(), excelExportEntity1.getGroupName(),
-                            excelExportEntity1.getOrderNum(), excelExportEntity1.getWidth()));
+                            excelExportEntity1.getOrderNum(), excelExportEntity1.getWidth(),field.getName()));
                 } else {
                     excelExportEntity = ExcelExportEntity.createExcelExportEntity(field, pojoClass);
                     headerElement = new ExcelSheetManipulator.HeaderElement(excelExportEntity.getName(), excelExportEntity.getGroupName(),
-                            excelExportEntity.getOrderNum(), excelExportEntity.getWidth(),field.getName());
+                            excelExportEntity.getOrderNum(), excelExportEntity.getWidth(), field.getName());
                 }
 
                 // if not basic class, consider it as a user-defined class, fields of which should be basic javaClass to recursively obtain field information
             } else if (excelEntity != null) {
 
                 headerElement = new ExcelSheetManipulator.HeaderElement(excelEntity.name(), null,
-                        excelEntity.order(), 0,field.getName());
+                        excelEntity.order(), 0, field.getName());
                 Map<String, ExcelImportServer.ExcelImportEntity> subExcelParams = new HashMap<>();
                 readAllExcelFields(ReflectionUtil.getClassFields(field.getType()), excelParams, field.getType(),
                         headerElement.getSubElements());
@@ -218,7 +218,7 @@ public class ExcelExportServer {
             excelParams.add(excelExport);
         }
 
-        // reorder according to order parameter, after a level of list has benn added
+        // reorder according to order parameter, after a level of list has been added
         Collections.sort(excelParams);
     }
 
@@ -227,11 +227,11 @@ public class ExcelExportServer {
 
     private void convertToSheetDataFormat(Object t, List<ExcelExportEntity> excelParams, List<ExcelSheetManipulator.ObjElement> objElements) throws Exception {
         int index = 5;
-        Properties properties = replenishProperties(index + 1, excelParams); // formula function will be implemented in ExcelSheetManipulator todo
-        GenericTokenParser genericTokenParser = new GenericTokenParser("${", "}", properties);
+//        Properties properties = replenishProperties(index + 1, excelParams); // formula function will be implemented in ExcelSheetManipulator todo
+//        GenericTokenParser genericTokenParser = new GenericTokenParser("${", "}", properties);
         ExcelExportEntity entity;
-        for (int k = 0, paramSize = excelParams.size(); k < paramSize; k++) {
-            entity = excelParams.get(k);
+        for (ExcelExportEntity excelParam : excelParams) {
+            entity = excelParam;
 
             if (entity.getList() == null || entity.getList().size() == 0) { // ordinary field of pojo
                 Object value = getCellValue(entity, t);
@@ -263,6 +263,7 @@ public class ExcelExportServer {
      * @throws Exception
      */
     private Object getCellValue(ExcelExportEntity entity, Object obj) throws Exception {
+        if (entity.type == 3) return entity.getFormulaExpr(); // 公式只需要传入公式表达式
         Object value = entity.getMethod().invoke(obj, new Object[]{});
         value = Optional.ofNullable(value).orElse("");
         if (StringUtils.isEmpty(value.toString())) {
@@ -697,7 +698,6 @@ public class ExcelExportServer {
          *
          * @param field
          * @param pojoClass
-         * @param getMethods
          * @return
          * @throws Exception
          */
@@ -712,7 +712,7 @@ public class ExcelExportServer {
             excelEntity.setHeight(excelField.height());
             excelEntity.setReplace(excelField.replace());
 
-            excelEntity.setOrderNum(Integer.valueOf(excelField.orderNum()));
+            excelEntity.setOrderNum(Integer.parseInt(excelField.orderNum()));
             excelEntity.setExportImageType(excelField.imageType());
             excelEntity.setSuffix(excelField.suffix());
             excelEntity.setDatabaseFormat(excelField.databaseFormat());

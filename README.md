@@ -35,4 +35,12 @@ Future changes
 1. I have also noticed an alternative library [EasyExcel](https://github.com/alibaba/easyexcel), which can handle Out-Of-Memory problem for batch export or import. In the future, it may be needed to incorporate its API into this project.
 2. The code is still not perfectly clean (even though addition of new functions become easier),  some code are still redundant and should be cut.
 3. The code support image export and import in Excel (from original one) that can be run but incomplete, which need to be improved including its API design.
-4. Systematic tests need to be done.
+
+
+---------------------------
+Demo
+--------------------------
+
+A test is created for Excel import and export. In class org.simplepoi.functest.ImportExport1Test, test methods testExport and testImport provide a demo to import or export data. The result Excel is as below:
+![avatar](/demo.PNG)
+The method testExport export Teacher list initialized using three class Teacher, Student and Grade, to Excel file in desktop, the file is just the same as the one in resource folder of this project. The method  testImport just import the exported Excel file, to convert it to Teacher list data, then based on the converted data create an Excel file in desktop to verify the converted data is same as original.
