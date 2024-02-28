@@ -10,10 +10,6 @@ import org.simplepoi.excel.constant.ExcelType;
 import org.simplepoi.functest.entity.Grade;
 import org.simplepoi.functest.entity.Student;
 import org.simplepoi.functest.entity.Teacher;
-import org.simplepoi.test.entity.BasicTestEntity;
-import org.simplepoi.test.entity.WidthTestEntity1;
-import org.simplepoi.test.entity.WidthTestEntity2;
-import org.simplepoi.test.entity.WidthTestEntity3;
 
 import java.io.File;
 import java.io.FileOutputStream;

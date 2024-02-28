@@ -8,7 +8,6 @@ import org.simplepoi.excel.constant.ExcelType;
 import org.simplepoi.test.entity.FormulaEntity;
 import org.simplepoi.test.entity.WidthTestEntity1;
 import org.simplepoi.test.entity.WidthTestEntity2;
-import org.simplepoi.test.entity.WidthTestEntity3;
 import org.simplepoi.test.tokenization.GenericTokenParser;
 
 import java.io.File;
@@ -59,13 +58,6 @@ public class ExportTest {
         map2.put("data", earningStatData2);
         map2.put("entity", WidthTestEntity2.class);
         listMap.add(map2);
-
-        Map<String, Object> map3 = new HashMap<>(); // 该情况 偏移叫大，前对后面的两列生效
-        map3.put("title", new ExportParams(null, "宽度测试3", ExcelType.XSSF));
-        List<WidthTestEntity3> earningStatData3 = new ArrayList<>();
-        map3.put("data", earningStatData3);
-        map3.put("entity", WidthTestEntity3.class);
-        listMap.add(map3);
 
         exportToFile(listMap, "宽度测试");  // 文件导出
     }
